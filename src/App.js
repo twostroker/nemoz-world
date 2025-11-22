@@ -19,6 +19,8 @@ const NemozWorld = () => {
   const [editingWork, setEditingWork] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [clickCount, setClickCount] = useState(0);
+  const [clickTimer, setClickTimer] = useState(null);
   const [newWork, setNewWork] = useState({
     title: '',
     description: '',
@@ -171,13 +173,36 @@ if (error) {
     setEditingWork(null);
   };
 
-  const handleOrder = (work) => {
-    const productUrl = `${window.location.origin}?product=${work.id}`;
-    const message = `Hi! I want to order: ${work.title}\n\nProduct Link: ${productUrl}`;
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://instagram.com/${INSTAGRAM_HANDLE}?text=${encodedMessage}`, '_blank');
-  };
+const handleOrder = (work) => {
+  const productUrl = `${window.location.origin}?product=${work.id}`;
+  const message = `Hi! I want to order: ${work.title}\n\nProduct Link: ${productUrl}`;
+  const encodedMessage = encodeURIComponent(message);
+  window.open(`https://instagram.com/${INSTAGRAM_HANDLE}?text=${encodedMessage}`, '_blank');
+};
 
+const handleFooterClick = () => {
+  if (isAdmin) return;
+  
+  setClickCount(prev => prev + 1);
+  
+  if (clickTimer) {
+    clearTimeout(clickTimer);
+  }
+  
+  const timer = setTimeout(() => {
+    setClickCount(0);
+  }, 2000);
+  
+  setClickTimer(timer);
+  
+  if (clickCount + 1 === 4) {
+    setShowAdminLogin(true);
+    setClickCount(0);
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+    }
+  }
+};
   return (
     <div className="min-h-screen bg-black pb-24">
       <style>{`
@@ -632,15 +657,11 @@ if (error) {
             
             <div className="text-right">
               <p 
-                onClick={(e) => {
-                  if (e.detail === 4 && !isAdmin) {
-                    setShowAdminLogin(true);
-                  }
-                }}
-                className="text-gray-400 font-medium cursor-default select-none"
-              >
-                with love, zoro
-              </p>
+  onClick={handleFooterClick}
+  className="text-gray-400 font-medium cursor-pointer select-none"
+>
+  with love, zoro
+</p>
             </div>
           </div>
         </div>
