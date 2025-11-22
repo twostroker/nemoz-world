@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Instagram, Youtube, Trash2, LogIn, LogOut, Plus, X, Edit } from 'lucide-react';
+import { Instagram, Youtube, Trash2, LogOut, Plus, X, Edit } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+// ========================================
+// REPLACE THESE WITH YOUR SUPABASE VALUES
+// ========================================
+const SUPABASE_URL = 'https://znalxczzlwqejkqccqip.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuYWx4Y3p6bHdxZWprcWNjcWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3MTMxNzYsImV4cCI6MjA3OTI4OTE3Nn0._at6xWokLR5QETHOQPVYPm3jWBwxdrRqxYnDI3g-y58';
+
+// Initialize Supabase client
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const NemozWorld = () => {
   const [works, setWorks] = useState([]);
@@ -7,6 +17,8 @@ const NemozWorld = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [editingWork, setEditingWork] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [newWork, setNewWork] = useState({
     title: '',
     description: '',
@@ -16,20 +28,45 @@ const NemozWorld = () => {
   });
 
   const ADMIN_PASSWORD = 'nemoz2025';
-  const INSTAGRAM_HANDLE = 'crazy_,craftzy';
+  const INSTAGRAM_HANDLE = 'crazy_.craftzy';
   const YOUTUBE_CHANNEL = '@nemoz-k6q';
 
+  // Fetch works from Supabase
+  const fetchWorks = async () => {
+    setLoading(true);
+   const { data, error } = await supabase
+  .from('works')
+  .select('*')
+  .order('created_at', { ascending: false });
+
+if (error) {
+  console.error('Error fetching works:', error);
+} else {
+  setWorks(data || []);
+}
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const savedWorks = localStorage.getItem('nemoz_works');
-    if (savedWorks) {
-      setWorks(JSON.parse(savedWorks));
+    fetchWorks();
+
+    // Check if URL has a product ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = urlParams.get('product');
+    if (productId) {
+      const fetchProduct = async () => {
+        const { data } = await supabase
+          .from('works')
+          .select('*')
+          .eq('id', productId)
+          .single();
+        if (data) {
+          setSelectedProduct(data);
+        }
+      };
+      fetchProduct();
     }
   }, []);
-
-  const saveWorks = (updatedWorks) => {
-    localStorage.setItem('nemoz_works', JSON.stringify(updatedWorks));
-    setWorks(updatedWorks);
-  };
 
   const handleAdminLogin = () => {
     if (adminPassword === ADMIN_PASSWORD) {
@@ -41,52 +78,93 @@ const NemozWorld = () => {
     }
   };
 
-  const handleAddWork = () => {
+  const handleAddWork = async () => {
     if (!newWork.title || !newWork.imageUrl) {
       alert('Please fill in at least the title and image URL');
       return;
     }
 
-    const work = {
-      id: Date.now(),
-      ...newWork,
-      createdAt: new Date().toISOString()
-    };
+    const { data, error } = await supabase
+      .from('works')
+      .insert([
+        {
+          title: newWork.title,
+          description: newWork.description,
+          price: newWork.price,
+          image_url: newWork.imageUrl,
+          type: newWork.type
+        }
+      ])
+      .select();
 
-    const updatedWorks = [work, ...works];
-    saveWorks(updatedWorks);
-    
-    setNewWork({
-      title: '',
-      description: '',
-      price: '',
-      imageUrl: '',
-      type: 'image'
-    });
+    if (error) {
+      console.error('Error adding work:', error);
+      alert('Failed to add work. Please try again.');
+    } else {
+      await fetchWorks();
+      setNewWork({
+        title: '',
+        description: '',
+        price: '',
+        imageUrl: '',
+        type: 'image'
+      });
+      alert('Work added successfully!');
+    }
   };
 
-  const handleDeleteWork = (id) => {
+  const handleDeleteWork = async (id) => {
     if (window.confirm('Are you sure you want to delete this work?')) {
-      const updatedWorks = works.filter(w => w.id !== id);
-      saveWorks(updatedWorks);
+      const { error } = await supabase
+        .from('works')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting work:', error);
+        alert('Failed to delete work.');
+      } else {
+        await fetchWorks();
+      }
     }
   };
 
   const handleEditWork = (work) => {
-    setEditingWork(work);
+    setEditingWork({
+      id: work.id,
+      title: work.title,
+      description: work.description,
+      price: work.price,
+      imageUrl: work.image_url,
+      type: work.type
+    });
   };
 
-  const handleUpdateWork = () => {
+  const handleUpdateWork = async () => {
     if (!editingWork.title || !editingWork.imageUrl) {
       alert('Please fill in at least the title and image URL');
       return;
     }
 
-    const updatedWorks = works.map(w => 
-      w.id === editingWork.id ? editingWork : w
-    );
-    saveWorks(updatedWorks);
-    setEditingWork(null);
+    const { error } = await supabase
+      .from('works')
+      .update({
+        title: editingWork.title,
+        description: editingWork.description,
+        price: editingWork.price,
+        image_url: editingWork.imageUrl,
+        type: editingWork.type
+      })
+      .eq('id', editingWork.id);
+
+    if (error) {
+      console.error('Error updating work:', error);
+      alert('Failed to update work.');
+    } else {
+      await fetchWorks();
+      setEditingWork(null);
+      alert('Work updated successfully!');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -149,12 +227,6 @@ const NemozWorld = () => {
         .image-hover:hover img,
         .image-hover:hover video {
           transform: scale(1.1);
-        }
-
-        .glass {
-          background: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
         }
       `}</style>
 
@@ -225,7 +297,54 @@ const NemozWorld = () => {
         </div>
       )}
 
-
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl max-w-4xl w-full relative border border-gray-800 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 bg-black bg-opacity-50 rounded-full p-2"
+            >
+              <X size={24} />
+            </button>
+            
+            <div className="grid md:grid-cols-2 gap-8 p-8">
+              <div className="image-hover rounded-xl overflow-hidden">
+                {selectedProduct.type === 'video' ? (
+                  <video
+                    src={selectedProduct.image_url}
+                    controls
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <img
+                    src={selectedProduct.image_url}
+                    alt={selectedProduct.title}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+              
+              <div className="flex flex-col">
+                <h2 className="text-4xl font-black text-white mb-4">{selectedProduct.title}</h2>
+                {selectedProduct.price && (
+                  <p className="text-3xl font-black text-purple-400 mb-6">{selectedProduct.price}</p>
+                )}
+                {selectedProduct.description && (
+                  <p className="text-gray-300 text-lg leading-relaxed mb-8">{selectedProduct.description}</p>
+                )}
+                
+                <button
+                  onClick={() => handleOrder(selectedProduct)}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-lg font-black text-lg hover:opacity-90 transition-all mt-auto"
+                >
+                  Order on Instagram
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Work Modal */}
       {editingWork && (
@@ -394,7 +513,12 @@ const NemozWorld = () => {
         <div>
           <h2 className="text-5xl font-black text-white mb-12 text-center">Latest Works</h2>
           
-          {works.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-20">
+              <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500"></div>
+              <p className="text-gray-400 mt-4">Loading works...</p>
+            </div>
+          ) : works.length === 0 ? (
             <div className="text-center py-20 bg-gray-900 rounded-2xl border border-gray-800">
               <p className="text-gray-400 text-xl">No works yet. {isAdmin && 'Start by adding your first creation!'}</p>
             </div>
@@ -409,13 +533,13 @@ const NemozWorld = () => {
                   <div className="image-hover">
                     {work.type === 'video' ? (
                       <video
-                        src={work.imageUrl}
+                        src={work.image_url}
                         controls
                         className="w-full h-72 object-cover"
                       />
                     ) : (
                       <img
-                        src={work.imageUrl}
+                        src={work.image_url}
                         alt={work.title}
                         className="w-full h-72 object-cover"
                       />
@@ -436,7 +560,7 @@ const NemozWorld = () => {
                     
                     <div className="flex gap-3">
                       <button
-                        onClick={() => handleOrder(work.title)}
+                        onClick={() => handleOrder(work)}
                         className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold hover:opacity-90 transition-all"
                       >
                         Order Now
@@ -459,6 +583,19 @@ const NemozWorld = () => {
                         </>
                       )}
                     </div>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          const productUrl = `${window.location.origin}?product=${work.id}`;
+                          navigator.clipboard.writeText(productUrl);
+                          alert('Product link copied to clipboard!');
+                        }}
+                        className="w-full mt-2 text-sm text-gray-400 hover:text-purple-400 transition-colors"
+                      >
+                        Copy Product Link
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
