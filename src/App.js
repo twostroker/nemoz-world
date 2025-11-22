@@ -100,9 +100,10 @@ if (error) {
       .select();
 
     if (error) {
-      console.error('Error adding work:', error);
-      alert('Failed to add work. Please try again.');
-    } else {
+  console.error('Error adding work:', error);
+  console.log('Full error details:', JSON.stringify(error, null, 2));
+  alert('Failed to add work. Please try again.');
+} else {
       await fetchWorks();
       setNewWork({
         title: '',
